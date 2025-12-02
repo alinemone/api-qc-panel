@@ -71,7 +71,17 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
+    """Simple health check endpoint - no database check"""
+    return {
+        "status": "healthy",
+        "service": "qc-panel-api",
+        "version": "1.0.0"
+    }
+
+
+@app.get("/health/detailed")
+async def detailed_health_check():
+    """Detailed health check with database status"""
     db_status = "unknown"
     try:
         from database import get_db_connection
@@ -86,7 +96,9 @@ async def health_check():
 
     return {
         "status": "healthy",
-        "database": db_status
+        "database": db_status,
+        "service": "qc-panel-api",
+        "version": "1.0.0"
     }
 
 

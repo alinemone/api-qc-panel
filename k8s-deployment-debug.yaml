@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-qcpanel-debug
+  labels:
+    app: api-qcpanel-debug
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api-qcpanel-debug
+  template:
+    metadata:
+      labels:
+        app: api-qcpanel-debug
+    spec:
+      containers:
+      - name: api-qcpanel
+        image: your-registry/qc-panel-api:debug
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+          name: http
+
+        # Environment variables
+        envFrom:
+        - configMapRef:
+            name: api-qcpanel-config
+            optional: true
+        - secretRef:
+            name: api-qcpanel-secrets
+            optional: true
+
+        # Resource limits - enough memory
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "1Gi"  # More memory to avoid OOM
+            cpu: "1000m"
+
+        # NO startup probe - let it start naturally
+
+        # Simple liveness probe - just check if process is alive
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8000
+          initialDelaySeconds: 60  # Wait 1 minute before checking
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 5  # Allow 5 failures before restart
+
+        # Simple readiness probe
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30  # Wait 30s before checking
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6  # Allow 6 failures = 1 minute
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-qcpanel-debug
+  labels:
+    app: api-qcpanel-debug
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8000
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  selector:
+    app: api-qcpanel-debug
