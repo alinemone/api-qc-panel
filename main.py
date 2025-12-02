@@ -15,6 +15,7 @@ from routes import (
 )
 from routes import settings as settings_routes
 import time
+from contextlib import asynccontextmanager
 
 # Initialize settings first
 settings = get_settings()
@@ -38,12 +39,37 @@ logger.info(f"Logging configured with level: {settings.LOG_LEVEL.upper()}")
 logger.info("Loading application settings...")
 logger.info(f"Settings loaded - API will run on {settings.API_HOST}:{settings.API_PORT}")
 
-# Create FastAPI app
+
+# Lifespan context manager (replaces on_event)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    logger.info("=" * 50)
+    logger.info("QC Panel API is starting...")
+    logger.info(f"Version: 1.0.0")
+    logger.info(f"Host: {settings.API_HOST}:{settings.API_PORT}")
+    logger.info(f"CORS Origins: {settings.CORS_ORIGINS}")
+    logger.info(f"Database Host: {settings.POSTGRES_HOST}")
+    logger.info(f"Database: {settings.POSTGRES_DATABASE}")
+    logger.info(f"Schema: {settings.POSTGRES_SCHEMA}")
+    logger.info("Database connection will be tested on first request")
+    logger.info("=" * 50)
+
+    yield
+
+    # Shutdown
+    logger.info("=" * 50)
+    logger.info("QC Panel API is shutting down...")
+    logger.info("=" * 50)
+
+
+# Create FastAPI app with lifespan
 logger.info("Creating FastAPI application...")
 app = FastAPI(
     title="QC Panel API",
     description="Quality Control Panel Backend API",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 logger.info("FastAPI application created")
 
@@ -66,29 +92,6 @@ async def log_requests(request: Request, call_next):
     except Exception as e:
         logger.error(f"Request failed: {request.method} {request.url.path} Error: {str(e)}")
         raise
-
-# Startup event
-@app.on_event("startup")
-async def startup_event():
-    """Startup event - don't check database here"""
-    logger.info("=" * 50)
-    logger.info("QC Panel API is starting...")
-    logger.info(f"Version: 1.0.0")
-    logger.info(f"Host: {settings.API_HOST}:{settings.API_PORT}")
-    logger.info(f"CORS Origins: {settings.CORS_ORIGINS}")
-    logger.info(f"Database Host: {settings.POSTGRES_HOST}")
-    logger.info(f"Database: {settings.POSTGRES_DATABASE}")
-    logger.info(f"Schema: {settings.POSTGRES_SCHEMA}")
-    logger.info("Database connection will be tested on first request")
-    logger.info("=" * 50)
-
-# Shutdown event
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Shutdown event"""
-    logger.info("=" * 50)
-    logger.info("QC Panel API is shutting down...")
-    logger.info("=" * 50)
 
 # Configure CORS
 logger.info("Configuring CORS middleware...")
