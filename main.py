@@ -44,23 +44,36 @@ logger.info(f"Settings loaded - API will run on {settings.API_HOST}:{settings.AP
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    logger.info("=" * 50)
-    logger.info("QC Panel API is starting...")
-    logger.info(f"Version: 1.0.0")
-    logger.info(f"Host: {settings.API_HOST}:{settings.API_PORT}")
-    logger.info(f"CORS Origins: {settings.CORS_ORIGINS}")
-    logger.info(f"Database Host: {settings.POSTGRES_HOST}")
-    logger.info(f"Database: {settings.POSTGRES_DATABASE}")
-    logger.info(f"Schema: {settings.POSTGRES_SCHEMA}")
-    logger.info("Database connection will be tested on first request")
-    logger.info("=" * 50)
+    try:
+        logger.info("=" * 50)
+        logger.info("LIFESPAN: Starting application startup sequence...")
+        logger.info("=" * 50)
+        logger.info("QC Panel API is starting...")
+        logger.info(f"Version: 1.0.0")
+        logger.info(f"Host: {settings.API_HOST}:{settings.API_PORT}")
+        logger.info(f"CORS Origins: {settings.CORS_ORIGINS}")
+        logger.info(f"Database Host: {settings.POSTGRES_HOST}")
+        logger.info(f"Database: {settings.POSTGRES_DATABASE}")
+        logger.info(f"Schema: {settings.POSTGRES_SCHEMA}")
+        logger.info("Database connection will be tested on first request")
+        logger.info("=" * 50)
+        logger.info("LIFESPAN: Startup complete, application ready!")
+        logger.info("=" * 50)
+    except Exception as e:
+        logger.error(f"LIFESPAN: Startup failed with error: {e}")
+        logger.exception("Full traceback:")
+        raise
 
     yield
 
     # Shutdown
-    logger.info("=" * 50)
-    logger.info("QC Panel API is shutting down...")
-    logger.info("=" * 50)
+    try:
+        logger.info("=" * 50)
+        logger.info("LIFESPAN: Starting shutdown sequence...")
+        logger.info("QC Panel API is shutting down...")
+        logger.info("=" * 50)
+    except Exception as e:
+        logger.error(f"LIFESPAN: Shutdown error: {e}")
 
 
 # Create FastAPI app with lifespan
@@ -91,7 +104,10 @@ async def log_requests(request: Request, call_next):
         return response
     except Exception as e:
         logger.error(f"Request failed: {request.method} {request.url.path} Error: {str(e)}")
+        logger.exception("Request exception traceback:")
         raise
+
+logger.info("Request logging middleware registered")
 
 # Configure CORS
 logger.info("Configuring CORS middleware...")
@@ -182,6 +198,29 @@ async def detailed_health_check():
         result["database_error"] = db_error
 
     return result
+
+
+# Final initialization logs
+logger.info("=" * 50)
+logger.info("MODULE LOADED: main.py initialization complete")
+logger.info("Application is ready to receive requests")
+logger.info("Waiting for Uvicorn to start the server...")
+logger.info("=" * 50)
+
+# Signal handler for debugging
+import signal
+import sys as system
+
+def signal_handler(sig, frame):
+    sig_name = signal.Signals(sig).name
+    logger.warning(f"SIGNAL RECEIVED: {sig_name} (signal {sig})")
+    logger.warning("Application is terminating...")
+    system.exit(0)
+
+# Register signal handlers
+signal.signal(signal.SIGTERM, signal_handler)
+signal.signal(signal.SIGINT, signal_handler)
+logger.info("Signal handlers registered (SIGTERM, SIGINT)")
 
 
 # if __name__ == "__main__":
