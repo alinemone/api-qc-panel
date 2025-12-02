@@ -9,7 +9,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 # Install dependencies
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends curl && \
+    apt-get install -y --no-install-recommends curl dos2unix && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy and install requirements
@@ -19,9 +19,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy only essential files
 COPY main.py config.py database.py utils.py ./
 COPY routes/ ./routes/
+COPY entrypoint.sh .
+
+# Fix line endings and make executable
+RUN dos2unix entrypoint.sh && chmod +x entrypoint.sh
 
 # Expose port
 EXPOSE 8000
 
-# Simple direct command - no scripts, no complexity
-CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--log-level", "debug"]
+# Use entrypoint for better logging
+ENTRYPOINT ["./entrypoint.sh"]
