@@ -1,4 +1,6 @@
-from fastapi import FastAPI
+import logging
+import sys
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from config import get_settings
 from routes import (
@@ -12,33 +14,84 @@ from routes import (
     agents
 )
 from routes import settings as settings_routes
+import time
 
-# Initialize settings
+# Initialize settings first
 settings = get_settings()
 
+# Configure logging with level from settings
+log_level = getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO)
+logging.basicConfig(
+    level=log_level,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+
+logger = logging.getLogger(__name__)
+
+# Log the configured log level
+logger.info(f"Logging configured with level: {settings.LOG_LEVEL.upper()}")
+
+# Initialize settings
+logger.info("Loading application settings...")
+logger.info(f"Settings loaded - API will run on {settings.API_HOST}:{settings.API_PORT}")
+
 # Create FastAPI app
+logger.info("Creating FastAPI application...")
 app = FastAPI(
     title="QC Panel API",
     description="Quality Control Panel Backend API",
     version="1.0.0"
 )
+logger.info("FastAPI application created")
+
+# Add request logging middleware
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start_time = time.time()
+
+    logger.info(f"Incoming request: {request.method} {request.url.path}")
+
+    try:
+        response = await call_next(request)
+        process_time = time.time() - start_time
+        logger.info(
+            f"Request completed: {request.method} {request.url.path} "
+            f"Status: {response.status_code} "
+            f"Duration: {process_time:.3f}s"
+        )
+        return response
+    except Exception as e:
+        logger.error(f"Request failed: {request.method} {request.url.path} Error: {str(e)}")
+        raise
 
 # Startup event
 @app.on_event("startup")
 async def startup_event():
     """Startup event - don't check database here"""
-    import logging
-    logging.info("QC Panel API is starting...")
-    logging.info("Database connection will be tested on first request")
+    logger.info("=" * 50)
+    logger.info("QC Panel API is starting...")
+    logger.info(f"Version: 1.0.0")
+    logger.info(f"Host: {settings.API_HOST}:{settings.API_PORT}")
+    logger.info(f"CORS Origins: {settings.CORS_ORIGINS}")
+    logger.info(f"Database Host: {settings.POSTGRES_HOST}")
+    logger.info(f"Database: {settings.POSTGRES_DATABASE}")
+    logger.info(f"Schema: {settings.POSTGRES_SCHEMA}")
+    logger.info("Database connection will be tested on first request")
+    logger.info("=" * 50)
 
 # Shutdown event
 @app.on_event("shutdown")
 async def shutdown_event():
     """Shutdown event"""
-    import logging
-    logging.info("QC Panel API is shutting down...")
+    logger.info("=" * 50)
+    logger.info("QC Panel API is shutting down...")
+    logger.info("=" * 50)
 
 # Configure CORS
+logger.info("Configuring CORS middleware...")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
@@ -46,22 +99,35 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+logger.info(f"CORS configured for origins: {settings.CORS_ORIGINS}")
 
 # Include routers
+logger.info("Registering API routes...")
 app.include_router(auth.router)
+logger.info("  - Auth routes registered")
 app.include_router(users.router)
+logger.info("  - Users routes registered")
 app.include_router(conversations.router)
+logger.info("  - Conversations routes registered")
 app.include_router(reviews.router)
+logger.info("  - Reviews routes registered")
 app.include_router(comparison.router)
+logger.info("  - Comparison routes registered")
 app.include_router(dashboard.router)
+logger.info("  - Dashboard routes registered")
 app.include_router(leaderboard.router)
+logger.info("  - Leaderboard routes registered")
 app.include_router(settings_routes.router)
+logger.info("  - Settings routes registered")
 app.include_router(agents.router)
+logger.info("  - Agents routes registered")
+logger.info("All routes registered successfully")
 
 
 @app.get("/")
 async def root():
     """Root endpoint"""
+    logger.debug("Root endpoint called")
     return {
         "message": "QC Panel API",
         "version": "1.0.0",
@@ -72,6 +138,7 @@ async def root():
 @app.get("/health")
 async def health_check():
     """Simple health check endpoint - no database check"""
+    logger.debug("Health check endpoint called")
     return {
         "status": "healthy",
         "service": "qc-panel-api",
@@ -82,8 +149,12 @@ async def health_check():
 @app.get("/health/detailed")
 async def detailed_health_check():
     """Detailed health check with database status"""
+    logger.info("Detailed health check started")
     db_status = "unknown"
+    db_error = None
+
     try:
+        logger.debug("Attempting database connection...")
         from database import get_db_connection
         # Run sync database call in thread pool
         import asyncio
@@ -91,15 +162,23 @@ async def detailed_health_check():
         conn = await loop.run_in_executor(None, get_db_connection)
         conn.close()
         db_status = "connected"
+        logger.info("Database connection successful")
     except Exception as e:
-        db_status = f"disconnected: {str(e)[:50]}"
+        db_status = "disconnected"
+        db_error = str(e)[:100]
+        logger.error(f"Database connection failed: {db_error}")
 
-    return {
+    result = {
         "status": "healthy",
         "database": db_status,
         "service": "qc-panel-api",
         "version": "1.0.0"
     }
+
+    if db_error:
+        result["database_error"] = db_error
+
+    return result
 
 
 # if __name__ == "__main__":
