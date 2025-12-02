@@ -23,6 +23,21 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Startup event
+@app.on_event("startup")
+async def startup_event():
+    """Startup event - don't check database here"""
+    import logging
+    logging.info("QC Panel API is starting...")
+    logging.info("Database connection will be tested on first request")
+
+# Shutdown event
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Shutdown event"""
+    import logging
+    logging.info("QC Panel API is shutting down...")
+
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
@@ -57,13 +72,17 @@ async def root():
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
+    db_status = "unknown"
     try:
         from database import get_db_connection
-        conn = get_db_connection()
+        # Run sync database call in thread pool
+        import asyncio
+        loop = asyncio.get_event_loop()
+        conn = await loop.run_in_executor(None, get_db_connection)
         conn.close()
         db_status = "connected"
-    except:
-        db_status = "disconnected"
+    except Exception as e:
+        db_status = f"disconnected: {str(e)[:50]}"
 
     return {
         "status": "healthy",

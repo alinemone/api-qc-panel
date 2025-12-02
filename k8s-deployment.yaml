@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-qcpanel
+  labels:
+    app: api-qcpanel
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: api-qcpanel
+  template:
+    metadata:
+      labels:
+        app: api-qcpanel
+    spec:
+      containers:
+      - name: api-qcpanel
+        image: your-registry/qc-panel-api:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+          name: http
+          protocol: TCP
+
+        # Environment variables from ConfigMap and Secret
+        envFrom:
+        - configMapRef:
+            name: api-qcpanel-config
+        - secretRef:
+            name: api-qcpanel-secrets
+
+        # Resource limits - مهم برای جلوگیری از OOM
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+
+        # Liveness probe - چک می‌کنه که container زنده است
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8000
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+
+        # Readiness probe - چک می‌کنه که آماده دریافت ترافیک است
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+
+        # Startup probe - زمان بیشتر برای startup
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 30  # 30 * 5 = 150 seconds max startup time
+
+      # Restart policy
+      restartPolicy: Always
+
+      # Security context
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-qcpanel
+  labels:
+    app: api-qcpanel
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8000
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  selector:
+    app: api-qcpanel
