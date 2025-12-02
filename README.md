@@ -237,6 +237,105 @@ python test-agent-metrics.py
 - آدرس فرانت را به `CORS_ORIGINS` در `.env` اضافه کنید
 - مطمئن شوید که پورت‌ها مطابقت دارند
 
+### Container کرش می‌کند یا لاگ ندارد
+
+اگر Docker container بلافاصله متوقف می‌شود:
+
+#### 1. بررسی لاگ‌ها:
+
+```bash
+# لاگ‌های container
+docker logs qc-panel-api
+
+# لاگ‌های جزئی‌تر
+docker logs --tail 100 qc-panel-api
+
+# اگر container متوقف شده
+docker ps -a | grep qc-panel
+docker logs <container-id>
+```
+
+#### 2. اجرای تست دستی:
+
+```bash
+# وارد container شوید
+docker run -it --rm --env-file .env qc-panel-api:latest /bin/bash
+
+# سپس import ها را تست کنید:
+python -c "from routes import auth; print('OK')"
+python -c "from config import get_settings; print('OK')"
+python -c "from database import get_db_connection; print('OK')"
+```
+
+#### 3. استفاده از deploy script:
+
+```bash
+chmod +x deploy.sh
+./deploy.sh
+```
+
+این script به شما کمک می‌کند:
+- Build و deploy کنید
+- لاگ‌ها را مشاهده کنید
+- API را تست کنید
+- مشکلات را debug کنید
+
+#### 4. بررسی متغیرهای محیطی:
+
+```bash
+# بررسی اینکه متغیرها درست ست شده‌اند
+docker exec qc-panel-api env | grep POSTGRES
+docker exec qc-panel-api env | grep API
+```
+
+#### 5. مشکلات رایج:
+
+**Import Error: No module named 'routes'**
+- فایل `routes/__init__.py` خالی نباشد
+- در Dockerfile، `COPY routes/ ./routes/` درست انجام شده باشد
+
+**Health check failing**
+- health check بعد از 40 ثانیه شروع می‌شود
+- اگر API کند راه‌اندازی می‌شود، این زمان را افزایش دهید
+
+**Database connection error**
+- اگر از Kubernetes استفاده می‌کنید، مطمئن شوید که DNS resolution درست کار می‌کند
+- تست کنید: `docker exec qc-panel-api ping <postgres-host>`
+- port forward برای تست: `kubectl port-forward svc/<postgres-service> 5432:5432`
+
+### Debug Mode
+
+برای debugging بیشتر، می‌توانید container را با override کردن entrypoint اجرا کنید:
+
+```bash
+# اجرای interactive برای debug
+docker run -it --rm \
+  --env-file .env \
+  -p 8000:8000 \
+  qc-panel-api:latest \
+  /bin/bash
+
+# سپس دستی uvicorn را اجرا کنید:
+uvicorn main:app --host 0.0.0.0 --port 8000 --log-level debug
+```
+
+### دریافت کمک
+
+اگر همچنان مشکل دارید:
+
+1. لاگ‌های کامل را جمع‌آوری کنید:
+```bash
+docker logs qc-panel-api > logs.txt 2>&1
+```
+
+2. بررسی کنید که تمام فایل‌های لازم در image هستند:
+```bash
+docker run --rm qc-panel-api:latest ls -la
+docker run --rm qc-panel-api:latest ls -la routes/
+```
+
+3. environment variables را بررسی کنید (بدون اطلاعات حساس)
+
 ## پشتیبانی
 
 برای گزارش مشکلات یا پیشنهادات، Issue ایجاد کنید.
