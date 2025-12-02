@@ -1,7 +1,8 @@
-# Use Python 3.11 slim image for smaller size
+# Simple Dockerfile without entrypoint script
+# Use this if the main Dockerfile has issues
+
 FROM python:3.11-slim
 
-# Set working directory
 WORKDIR /app
 
 # Set environment variables
@@ -15,37 +16,27 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     postgresql-client \
     curl \
-    dos2unix \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements file
+# Copy and install requirements
 COPY requirements.txt .
-
-# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
-COPY main.py .
-COPY config.py .
-COPY database.py .
-COPY utils.py .
+COPY main.py config.py database.py utils.py ./
 COPY routes/ ./routes/
 COPY migrations/ ./migrations/
-COPY entrypoint.sh .
 
-# Fix line endings and make entrypoint executable
-RUN dos2unix entrypoint.sh && chmod +x entrypoint.sh
-
-# Create a non-root user
+# Create non-root user
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 USER appuser
 
 # Expose port
 EXPOSE 8000
 
-# Health check - give more time for startup
+# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Run the application
-ENTRYPOINT ["./entrypoint.sh"]
+# Direct command - no entrypoint script
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--log-level", "info"]
