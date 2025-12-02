@@ -223,11 +223,11 @@ signal.signal(signal.SIGINT, signal_handler)
 logger.info("Signal handlers registered (SIGTERM, SIGINT)")
 
 
-# if __name__ == "__main__":
-#     import uvicorn
-#     uvicorn.run(
-#         "main:app",
-#         host=settings.API_HOST,
-#         port=settings.API_PORT,
-#         reload=True
-#     )
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        "main:app",
+        host=settings.API_HOST,
+        port=settings.API_PORT,
+        reload=True
+    )
