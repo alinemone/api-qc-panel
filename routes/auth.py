@@ -28,18 +28,12 @@ async def login(credentials: LoginRequest):
     """
     try:
         # Call verify_user_password function
-        query = "SELECT * FROM verify_user_password(%s, %s)"
+        query = "SELECT * FROM call.qc_users WHERE username = $username AND password = $password"
         result = execute_query(query, (credentials.username, credentials.password), fetch_one=True)
 
         if not result:
             raise HTTPException(status_code=401, detail="نام کاربری یا رمز عبور اشتباه است")
 
-        # Update last_login
-        try:
-            update_query = "UPDATE qc_users SET last_login = NOW() WHERE id = %s"
-            execute_query(update_query, (result['id'],), fetch_all=False)
-        except:
-            pass  # Ignore if column doesn't exist
 
         return LoginResponse(**result)
 
